@@ -25,24 +25,44 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Collections;
 import java.util.Set;
+import org.junit.Before;
 import org.junit.Test;
+import org.sonar.api.batch.fs.InputFile;
 import org.sonar.api.batch.fs.internal.DefaultInputFile;
 import org.sonar.api.batch.fs.internal.TestInputFileBuilder;
 import org.sonar.api.batch.sensor.internal.SensorContextTester;
+import org.sonar.java.AnalyzerMessage;
 import org.sonar.java.SonarComponents;
 import org.sonar.java.ast.JavaAstScanner;
 import org.sonar.java.model.VisitorsBridge;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class PackageInfoCheckTest {
+
+  private static AnalyzerMessage reportedMessage;
+
+  @Before
+  public void setup() {
+    reportedMessage = null;
+  }
 
   @Test
   public void test() throws Exception {
     PackageInfoCheck check = new PackageInfoCheck();
     File file = new File("src/test/files/checks/packageInfo/HelloWorld.java");
     JavaAstScanner.scanSingleFileForTests(file, new VisitorsBridge(Collections.singletonList(check), Collections.emptyList(), sonarComponents(file)));
+    File testFile = new File("src/test/files/checks/packageInfo/HelloWorld.java");
+    JavaAstScanner.scanSingleFileForTests(testFile, visitorsBridgeForTests(check, testFile, InputFile.Type.MAIN));
     assertThat(check.directoriesWithoutPackageFile).isEmpty();
+    assertThat(reportedMessage).isNull();
   }
 
   @Test
@@ -55,6 +75,44 @@ public class PackageInfoCheckTest {
     Set<File> set = check.directoriesWithoutPackageFile;
     assertThat(set).hasSize(1);
     assertThat(set.iterator().next().getName()).isEqualTo("nopackageinfo");
+  }
+
+  @Test
+  public void testFileWithoutPackageInfo() throws Exception {
+    PackageInfoCheck check = new PackageInfoCheck();
+    File testFile = new File("src/test/files/checks/packageInfo/nopackageinfo/HelloWorld.java");
+    JavaAstScanner.scanSingleFileForTests(testFile, visitorsBridgeForTests(check, testFile, InputFile.Type.TEST));
+    assertThat(check.directoriesWithoutPackageFile).isEmpty();
+    assertThat(reportedMessage).isNull();
+  }
+
+  private static VisitorsBridge visitorsBridgeForTests(PackageInfoCheck check, File testFile, InputFile.Type typeOfFile) {
+    return new VisitorsBridge(Collections.singleton(check), Collections.emptyList(), createSonarComponentsMock(testFile, typeOfFile));
+  }
+
+  private static SonarComponents createSonarComponentsMock(File testfile, InputFile.Type typeOfFile) {
+    SonarComponents sonarComponents = mock(SonarComponents.class);
+
+    InputFile inputFile = mock(InputFile.class);
+    when(inputFile.type()).thenReturn(typeOfFile);
+    when(sonarComponents.inputFromIOFile(eq(testfile))).thenReturn(inputFile);
+
+    when(sonarComponents.isSonarLintContext()).thenReturn(true);
+
+    doAnswer(invocation -> {
+      reportedMessage = new AnalyzerMessage(invocation.getArgument(1),
+        // check
+        invocation.getArgument(0),
+        // textspan
+        null,
+        // message
+        invocation.getArgument(3),
+        // cost
+        0);
+      return null;
+    }).when(sonarComponents).addIssue(any(File.class), any(PackageInfoCheck.class), anyInt(), anyString(), any());
+
+    return sonarComponents;
   }
 
   static SonarComponents sonarComponents(File file) throws IOException {
