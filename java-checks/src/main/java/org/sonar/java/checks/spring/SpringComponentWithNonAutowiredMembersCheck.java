@@ -57,7 +57,7 @@ public class SpringComponentWithNonAutowiredMembersCheck extends IssuableSubscri
         .filter(v -> !v.symbol().isStatic())
         .filter(v -> !isSpringInjectionAnnotated(v.symbol().metadata()))
         .filter(v -> !isCustomInjectionAnnotated(v.symbol().metadata()))
-        .forEach(v -> reportIssue(v.simpleName(), "Annotate this member with \"@Autowired\", \"@Resource\", \"@Inject\", or \"@Value\", or remove it."));
+        .forEach(v -> reportIssue(v.simpleName(), "Annotate this member with \"@Autowired\", \"@Resource\", \"@Inject\", \"@PersistenceContext\", or \"@Value\", or remove it."));
     }
   }
 
@@ -74,6 +74,7 @@ public class SpringComponentWithNonAutowiredMembersCheck extends IssuableSubscri
     return metadata.isAnnotatedWith("org.springframework.beans.factory.annotation.Autowired")
       || metadata.isAnnotatedWith("javax.inject.Inject")
       || metadata.isAnnotatedWith("javax.annotation.Resource")
+      || metadata.isAnnotatedWith("javax.persistence.PersistenceContext")
       || metadata.isAnnotatedWith("org.springframework.beans.factory.annotation.Value");
   }
 

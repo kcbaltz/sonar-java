@@ -8,13 +8,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import javax.inject.Inject;
 import javax.annotation.Resource;
+import javax.persistence.PersistenceContext;
+
 
 @Controller
 public class HelloWorld {
 
-  private String name = null; // Noncompliant [[sc=18;ec=22]] {{Annotate this member with "@Autowired", "@Resource", "@Inject", or "@Value", or remove it.}}
-  public String address = null; // Noncompliant [[sc=17;ec=24]] {{Annotate this member with "@Autowired", "@Resource", "@Inject", or "@Value", or remove it.}}
-  String phone = null; // Noncompliant [[sc=10;ec=15]] {{Annotate this member with "@Autowired", "@Resource", "@Inject", or "@Value", or remove it.}}
+  private String name = null; // Noncompliant [[sc=18;ec=22]] {{Annotate this member with "@Autowired", "@Resource", "@Inject", "@PersistenceContext", or "@Value", or remove it.}}
+  public String address = null; // Noncompliant [[sc=17;ec=24]] {{Annotate this member with "@Autowired", "@Resource", "@Inject", "@PersistenceContext", or "@Value", or remove it.}}
+  String phone = null; // Noncompliant [[sc=10;ec=15]] {{Annotate this member with "@Autowired", "@Resource", "@Inject", "@PersistenceContext", or "@Value", or remove it.}}
 
   @Autowired 
   String email = null; // Compliant
@@ -27,6 +29,10 @@ public class HelloWorld {
 
   @Value("${some.config.key}")
   String someConfigKey; // Compliant
+  
+  @PersistenceContext
+  private EntityManager em; // Compliant 
+
 
   private static final Logger LOGGER = LoggerFactory.getLogger(HelloWorld.class); // Compliant
   void someMethod(){}
@@ -34,12 +40,12 @@ public class HelloWorld {
 
 @Service
 class ServiceHelloWorld {
-  protected String name = null; // Noncompliant [[sc=20;ec=24]] {{Annotate this member with "@Autowired", "@Resource", "@Inject", or "@Value", or remove it.}}
+  protected String name = null; // Noncompliant [[sc=20;ec=24]] {{Annotate this member with "@Autowired", "@Resource", "@Inject", "@PersistenceContext", or "@Value", or remove it.}}
 }
 
 @Repository
 class RepositoryHelloWorld {
-  protected String name = null; // Noncompliant [[sc=20;ec=24]] {{Annotate this member with "@Autowired", "@Resource", "@Inject", or "@Value", or remove it.}}
+  protected String name = null; // Noncompliant [[sc=20;ec=24]] {{Annotate this member with "@Autowired", "@Resource", "@Inject", "@PersistenceContext", or "@Value", or remove it.}}
 }
 
 class NonSpringComponentClazz {
