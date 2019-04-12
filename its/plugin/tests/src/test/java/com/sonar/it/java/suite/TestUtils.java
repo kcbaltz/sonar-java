@@ -21,14 +21,18 @@ package com.sonar.it.java.suite;
 
 import com.google.common.collect.Iterables;
 import com.sonar.orchestrator.Orchestrator;
-import org.apache.commons.io.FileUtils;
-
+import com.sonar.orchestrator.container.Server;
 import java.io.File;
 import java.io.FilenameFilter;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import org.apache.commons.io.FileUtils;
+import org.sonarqube.ws.Issues.Issue;
 import org.sonarqube.ws.client.HttpConnector;
 import org.sonarqube.ws.client.WsClient;
 import org.sonarqube.ws.client.WsClientFactories;
+import org.sonarqube.ws.client.issue.SearchWsRequest;
 
 import static com.sonar.orchestrator.container.Server.ADMIN_LOGIN;
 import static com.sonar.orchestrator.container.Server.ADMIN_PASSWORD;
@@ -66,6 +70,13 @@ public class TestUtils {
     return new File(homeDir(), "projects/" + projectName + "/pom.xml");
   }
 
+  public static List<Issue> issuesForComponent(Orchestrator orchestrator, String componentKey) {
+    return newWsClient(orchestrator)
+      .issues()
+      .search(new SearchWsRequest().setComponentKeys(Collections.singletonList(componentKey)))
+      .getIssuesList();
+  }
+
   static WsClient newWsClient(Orchestrator orchestrator) {
     return WsClientFactories.getDefault().newClient(HttpConnector.newBuilder()
       .url(orchestrator.getServer().getUrl())
@@ -77,5 +88,11 @@ public class TestUtils {
       .credentials(ADMIN_LOGIN, ADMIN_PASSWORD)
       .url(orchestrator.getServer().getUrl())
       .build());
+  }
+
+  public static void provisionProject(Orchestrator ORCHESTRATOR, String projectKey, String projectName, String languageKey, String profileName) {
+    Server server = ORCHESTRATOR.getServer();
+    server.provisionProject(projectKey, projectName);
+    server.associateProjectToQualityProfile(projectKey, languageKey, profileName);
   }
 }

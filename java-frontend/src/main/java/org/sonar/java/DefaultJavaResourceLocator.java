@@ -20,43 +20,29 @@
 package org.sonar.java;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Maps;
-
-import org.sonar.api.batch.fs.FileSystem;
+import java.io.File;
+import java.util.Collection;
+import java.util.Map;
 import org.sonar.api.batch.fs.InputFile;
-import org.sonar.api.batch.sensor.SensorContext;
 import org.sonar.api.utils.log.Logger;
 import org.sonar.api.utils.log.Loggers;
 import org.sonar.plugins.java.api.JavaFileScannerContext;
 import org.sonar.plugins.java.api.JavaResourceLocator;
 
-import java.io.File;
-import java.util.Collection;
-import java.util.Map;
-
 public class DefaultJavaResourceLocator implements JavaResourceLocator {
 
-  private static final Logger LOG = Loggers.get(JavaResourceLocator.class);
+  private static final Logger LOG = Loggers.get(DefaultJavaResourceLocator.class);
 
-  private final FileSystem fs;
   private final JavaClasspath javaClasspath;
   @VisibleForTesting
   Map<String, InputFile> resourcesByClass;
-  private final Map<String, String> sourceFileByClass;
-  private SensorContext sensorContext;
 
-  public DefaultJavaResourceLocator(FileSystem fs, JavaClasspath javaClasspath) {
-    this.fs = fs;
+  public DefaultJavaResourceLocator(JavaClasspath javaClasspath) {
     this.javaClasspath = javaClasspath;
     resourcesByClass = Maps.newHashMap();
-    sourceFileByClass = Maps.newHashMap();
-  }
-
-  public void setSensorContext(SensorContext sensorContext) {
-    this.sensorContext = sensorContext;
   }
 
   @Override
@@ -67,12 +53,6 @@ public class DefaultJavaResourceLocator implements JavaResourceLocator {
       LOG.debug("Class not found in resource cache : {}", className);
     }
     return inputFile;
-  }
-
-  @Override
-  public String findSourceFileKeyByClassName(String className) {
-    String name = className.replace('.', '/');
-    return sourceFileByClass.get(name);
   }
 
   private Collection<String> classKeys() {
@@ -102,18 +82,9 @@ public class DefaultJavaResourceLocator implements JavaResourceLocator {
 
   @Override
   public void scanFile(JavaFileScannerContext context) {
-    Preconditions.checkNotNull(sensorContext);
+    InputFile inputFile = context.getInputFile();
     JavaFilesCache javaFilesCache = new JavaFilesCache();
     javaFilesCache.scanFile(context);
-    InputFile inputFile = fs.inputFile(fs.predicates().is(context.getFile()));
-    if (inputFile == null) {
-      throw new IllegalStateException("resource not found : " + context.getFileKey());
-    }
-    for (Map.Entry<String, File> classIOFileEntry : javaFilesCache.getResourcesCache().entrySet()) {
-      resourcesByClass.put(classIOFileEntry.getKey(), inputFile);
-      if (context.getFileKey() != null) {
-        sourceFileByClass.put(classIOFileEntry.getKey(), context.getFileKey());
-      }
-    }
+    javaFilesCache.getClassNames().forEach(className -> resourcesByClass.put(className, inputFile));
   }
 }

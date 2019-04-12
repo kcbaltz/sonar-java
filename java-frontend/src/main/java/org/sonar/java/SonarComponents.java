@@ -26,8 +26,6 @@ import com.google.gson.Gson;
 import com.sonar.sslr.api.RecognitionException;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -37,8 +35,8 @@ import org.sonar.api.SonarProduct;
 import org.sonar.api.batch.ScannerSide;
 import org.sonar.api.batch.bootstrap.ProjectDefinition;
 import org.sonar.api.batch.fs.FileSystem;
+import org.sonar.api.batch.fs.InputComponent;
 import org.sonar.api.batch.fs.InputFile;
-import org.sonar.api.batch.fs.InputPath;
 import org.sonar.api.batch.rule.CheckFactory;
 import org.sonar.api.batch.rule.Checks;
 import org.sonar.api.batch.sensor.SensorContext;
@@ -139,33 +137,68 @@ public class SonarComponents {
     this.context = context;
   }
 
+  /**
+   * DEPRECATED: Use {@link #addIssue(InputComponent, JavaCheck, int, String, Integer)} instead.
+   * As File-based API should not be used anymore, this is deprecated and will be dropped.
+   *
+   * @deprecated since SonarJava 5.12 - dropping usage of file to rely on InputComponent/InputFile
+   */
+  @Deprecated
+  public void addIssue(File file, JavaCheck check, int line, String message, @Nullable Integer cost) {
+    reportIssue(new AnalyzerMessage(check, inputFromIOFileOrDirectory(file), line, message, cost != null ? cost.intValue() : 0));
+  }
+
+  /**
+   * DEPRECATED: Method to retrieve the corresponding IssueComponent from a file.
+   * As File-based API should not be used anymore, this is deprecated and will be dropped.
+   *
+   * @deprecated since SonarJava 5.12 - dropping usage of file to rely on InputComponent/InputFile
+   */
+  @Deprecated
+  @Nullable
+  public InputComponent inputFromIOFileOrDirectory(File file) {
+    if (file.isDirectory()) {
+      // TODO context.module() is deprecated since SQ 7.6, but it can not yet be replaced by
+      // context.project() until the oldest "SQ supported version" is >= 7.6
+      return context != null && isInSubDirectory(fs.baseDir().getAbsoluteFile(), file.getAbsoluteFile()) ? project() : null;
+    }
+    return inputFromIOFile(file);
+  }
+
+  /**
+   * DEPRECATED: As file should not be used anymore, this is deprecated and will be dropped.
+   *
+   * @deprecated since SonarJava 5.12 - dropping usage of file to rely on InputComponent/InputFile
+   */
+  @Deprecated
+  private static boolean isInSubDirectory(File dir, @Nullable File file) {
+    return file != null && (file.equals(dir) || isInSubDirectory(dir, file.getParentFile()));
+  }
+
+  /**
+   * DEPRECATED: As file should not be used anymore, this is deprecated and will be dropped.
+   *
+   * InputFile/InputComponent should always be available in the context of a scan, and so no reason to still rely on File.
+   *
+   * @deprecated since SonarJava 5.12 - dropping usage of file to rely on InputComponent/InputFile
+   */
+  @Deprecated
+  @Nullable
   public InputFile inputFromIOFile(File file) {
     return fs.inputFile(fs.predicates().is(file));
   }
 
-  public int fileLength(File file) {
-    return inputFromIOFile(file).lines();
+  public FileLinesContext fileLinesContextFor(InputFile inputFile) {
+    return fileLinesContextFactory.createFor(inputFile);
   }
 
-  private InputPath inputPathFromIOFile(File file) {
-    if (file.isDirectory()) {
-      return fs.inputDir(file);
-    } else {
-      return inputFromIOFile(file);
-    }
+  public NewSymbolTable symbolizableFor(InputFile inputFile) {
+    return context.newSymbolTable().onFile(inputFile);
   }
 
-  public FileLinesContext fileLinesContextFor(File file) {
-    return fileLinesContextFactory.createFor(inputFromIOFile(file));
-  }
-
-  public NewSymbolTable symbolizableFor(File file) {
-    return context.newSymbolTable().onFile(inputFromIOFile(file));
-  }
-
-  public NewHighlighting highlightableFor(File file) {
+  public NewHighlighting highlightableFor(InputFile inputFile) {
     Preconditions.checkNotNull(context);
-    return context.newHighlighting().onFile(inputFromIOFile(file));
+    return context.newHighlighting().onFile(inputFile);
   }
 
   public List<File> getJavaClasspath() {
@@ -210,10 +243,6 @@ public class SonarComponents {
     return visitors;
   }
 
-  public FileSystem getFileSystem() {
-    return fs;
-  }
-
   public RuleKey getRuleKey(JavaCheck check) {
     for (Checks<JavaCheck> sonarChecks : checks()) {
       RuleKey ruleKey = sonarChecks.ruleKey(check);
@@ -224,8 +253,8 @@ public class SonarComponents {
     return null;
   }
 
-  public void addIssue(File file, JavaCheck check, int line, String message, @Nullable Integer cost) {
-    reportIssue(new AnalyzerMessage(check, file, line, message, cost != null ? cost.intValue() : 0));
+  public void addIssue(InputComponent inputComponent, JavaCheck check, int line, String message, @Nullable Integer cost) {
+    reportIssue(new AnalyzerMessage(check, inputComponent, line, message, cost != null ? cost.intValue() : 0));
   }
 
   public void reportIssue(AnalyzerMessage analyzerMessage) {
@@ -236,40 +265,42 @@ public class SonarComponents {
     if (key == null) {
       return;
     }
-    File file = analyzerMessage.getFile();
-    InputPath inputPath = inputPathFromIOFile(file);
-    if (inputPath == null) {
+    InputComponent inputComponent = analyzerMessage.getInputComponent();
+    if (inputComponent == null) {
       return;
     }
     Double cost = analyzerMessage.getCost();
-    reportIssue(analyzerMessage, key, inputPath, cost);
+    reportIssue(analyzerMessage, key, inputComponent, cost);
   }
 
   @VisibleForTesting
-  void reportIssue(AnalyzerMessage analyzerMessage, RuleKey key, InputPath inputPath, Double cost) {
+  void reportIssue(AnalyzerMessage analyzerMessage, RuleKey key, InputComponent fileOrProject, @Nullable Double cost) {
     Preconditions.checkNotNull(context);
     JavaIssue issue = JavaIssue.create(context, key, cost);
     AnalyzerMessage.TextSpan textSpan = analyzerMessage.primaryLocation();
     if (textSpan == null) {
-      // either an issue at file or folder level
-      issue.setPrimaryLocationOnFile(inputPath, analyzerMessage.getMessage());
+      // either an issue at file or project level
+      issue.setPrimaryLocationOnComponent(fileOrProject, analyzerMessage.getMessage());
     } else {
       if (!textSpan.onLine()) {
         Preconditions.checkState(!textSpan.isEmpty(), "Issue location should not be empty");
       }
-      issue.setPrimaryLocation((InputFile) inputPath, analyzerMessage.getMessage(), textSpan.startLine, textSpan.startCharacter, textSpan.endLine, textSpan.endCharacter);
+      issue.setPrimaryLocation((InputFile) fileOrProject, analyzerMessage.getMessage(), textSpan.startLine, textSpan.startCharacter, textSpan.endLine, textSpan.endCharacter);
     }
-    issue.addFlow(inputFromIOFile(analyzerMessage.getFile()), analyzerMessage.flows).save();
+    if (!analyzerMessage.flows.isEmpty()) {
+      issue.addFlow((InputFile) analyzerMessage.getInputComponent(), analyzerMessage.flows);
+    }
+    issue.save();
   }
 
-  public boolean reportAnalysisError(RecognitionException re, File file) {
-    reportAnalysisError(file, re.getMessage());
+  public boolean reportAnalysisError(RecognitionException re, InputFile inputFile) {
+    reportAnalysisError(inputFile, re.getMessage());
     return isSonarLintContext();
   }
 
-  public void reportAnalysisError(File file, String message) {
+  public void reportAnalysisError(InputFile inputFile, String message) {
     context.newAnalysisError()
-      .onFile(inputFromIOFile(file))
+      .onFile(inputFile)
       .message(message)
       .save();
   }
@@ -278,32 +309,24 @@ public class SonarComponents {
     return context.runtime().getProduct() == SonarProduct.SONARLINT;
   }
 
-  public String fileContent(File file) {
-    try {
-      return inputFromIOFile(file).contents();
-    } catch (IOException e) {
-      throw new AnalysisException("Unable to read file "+file, e);
-    }
-  }
-
-  public List<String> fileLines(File file) {
+  public List<String> fileLines(InputFile inputFile) {
     List<String> lines = new ArrayList<>();
-    try(Scanner scanner = new Scanner(getInputStream(file), getCharset(file).name())) {
+    try (Scanner scanner = new Scanner(inputFile.inputStream(), inputFile.charset().name())) {
       while (scanner.hasNextLine()) {
         lines.add(scanner.nextLine());
       }
     } catch (IOException e) {
-      throw new AnalysisException("Unable to read file "+file, e);
+      throw new AnalysisException(String.format("Unable to read file '%s'", inputFile), e);
     }
     return lines;
   }
 
-  private InputStream getInputStream(File file) throws IOException {
-    return inputFromIOFile(file).inputStream();
-  }
-
-  private Charset getCharset(File file) {
-    return inputFromIOFile(file).charset();
+  public String inputFileContents(InputFile inputFile) {
+    try {
+      return inputFile.contents();
+    } catch (IOException e) {
+      throw new AnalysisException(String.format("Unable to read file '%s'", inputFile), e);
+    }
   }
 
   public boolean analysisCancelled() {
@@ -344,4 +367,12 @@ public class SonarComponents {
     return current.getWorkDir();
   }
 
+  public File baseDir() {
+    return fs.baseDir();
+  }
+
+  public InputComponent project() {
+    // TODO to be changed to context.project() once LTS 7.x has been released
+    return context.module();
+  }
 }

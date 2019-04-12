@@ -21,13 +21,11 @@ package org.sonar.java;
 
 import com.google.common.collect.Lists;
 import java.io.File;
-import java.nio.file.Paths;
+import java.util.Set;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.sonar.api.batch.fs.internal.DefaultFileSystem;
-import org.sonar.api.batch.fs.internal.TestInputFileBuilder;
-import org.sonar.api.batch.sensor.SensorContext;
-import org.sonar.api.batch.sensor.internal.SensorContextTester;
+import org.sonar.api.batch.fs.InputFile;
+import org.sonar.java.ast.JavaAstScanner;
 import org.sonar.java.model.VisitorsBridge;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -43,30 +41,21 @@ public class DefaultJavaResourceLocatorTest {
     JavaClasspath javaClasspath = mock(JavaClasspath.class);
     when(javaClasspath.getBinaryDirs()).thenReturn(Lists.newArrayList(new File("target/test-classes")));
     when(javaClasspath.getElements()).thenReturn(Lists.newArrayList(new File("target/test-classes")));
-    SensorContext sensorContext = SensorContextTester.create(Paths.get("."));
-    File file = new File("src/test/java/org/sonar/java/DefaultJavaResourceLocatorTest.java");
-    DefaultFileSystem fs = new DefaultFileSystem(new File(""));
-    fs.add(new TestInputFileBuilder("", file.getPath()).build());
-    DefaultJavaResourceLocator jrl = new DefaultJavaResourceLocator(fs, javaClasspath);
-    jrl.setSensorContext(sensorContext);
-    org.sonar.java.ast.JavaAstScanner.scanSingleFileForTests(file, new VisitorsBridge(jrl));
+    InputFile inputFile = TestUtils.inputFile("src/test/java/org/sonar/java/DefaultJavaResourceLocatorTest.java");
+    DefaultJavaResourceLocator jrl = new DefaultJavaResourceLocator(javaClasspath);
+    JavaAstScanner.scanSingleFileForTests(inputFile, new VisitorsBridge(jrl));
     javaResourceLocator = jrl;
   }
 
   @Test
   public void resource_by_class() throws Exception {
-    assertThat(javaResourceLocator.resourcesByClass.keySet()).hasSize(5);
-    assertThat(javaResourceLocator.resourcesByClass.keySet()).contains("org/sonar/java/DefaultJavaResourceLocatorTest");
-    assertThat(javaResourceLocator.resourcesByClass.keySet()).contains("org/sonar/java/DefaultJavaResourceLocatorTest$A");
-    assertThat(javaResourceLocator.resourcesByClass.keySet()).contains("org/sonar/java/DefaultJavaResourceLocatorTest$A$I");
-    assertThat(javaResourceLocator.resourcesByClass.keySet()).contains("org/sonar/java/DefaultJavaResourceLocatorTest$A$1B");
-    assertThat(javaResourceLocator.resourcesByClass.keySet()).contains("org/sonar/java/DefaultJavaResourceLocatorTest$A$1B$1");
-  }
-
-  @Test
-  public void source_file_key_by_class_name() throws Exception {
-    assertThat(javaResourceLocator.findSourceFileKeyByClassName("org/sonar/java/DefaultJavaResourceLocatorTest")).endsWith("DefaultJavaResourceLocatorTest.java");
-    assertThat(javaResourceLocator.findSourceFileKeyByClassName("org.sonar.java.DefaultJavaResourceLocatorTest")).endsWith("DefaultJavaResourceLocatorTest.java");
+    Set<String> classNames = javaResourceLocator.resourcesByClass.keySet();
+    assertThat(classNames).hasSize(5);
+    assertThat(classNames).contains("org/sonar/java/DefaultJavaResourceLocatorTest");
+    assertThat(classNames).contains("org/sonar/java/DefaultJavaResourceLocatorTest$A");
+    assertThat(classNames).contains("org/sonar/java/DefaultJavaResourceLocatorTest$A$I");
+    assertThat(classNames).contains("org/sonar/java/DefaultJavaResourceLocatorTest$A$1B");
+    assertThat(classNames).contains("org/sonar/java/DefaultJavaResourceLocatorTest$A$1B$1");
   }
 
   @Test

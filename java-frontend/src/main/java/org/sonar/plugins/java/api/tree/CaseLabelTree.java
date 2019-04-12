@@ -20,7 +20,7 @@
 package org.sonar.plugins.java.api.tree;
 
 import com.google.common.annotations.Beta;
-
+import java.util.List;
 import javax.annotation.Nullable;
 
 /**
@@ -34,15 +34,48 @@ import javax.annotation.Nullable;
  * </pre>
  *
  * @since Java 1.3
+ *
+ * <pre>
+ *   case {@link #expressions()} :
+ *   case {@link #expressions()} ->
+ *   default ->
+ * </pre>
+ *
+ * @since Java 12 (SonarJava 5.12 - Support of Java 12)
  */
 @Beta
 public interface CaseLabelTree extends Tree {
 
   SyntaxToken caseOrDefaultKeyword();
 
+  /**
+   * @return true for case with colon: "case 3:" or "default:"
+   *         false for case with arrow: "case 3 ->" or "default ->"
+   * @since SonarJava 5.12: Support of Java 12
+   */
+  boolean isFallThrough();
+
+  /**
+   * @deprecated since SonarJava 5.12: use the {@link #expressions()} method instead
+   */
+  @Deprecated
   @Nullable
   ExpressionTree expression();
 
+  /**
+   * @since SonarJava 5.12: Support of Java 12
+   */
+  List<ExpressionTree> expressions();
+
+  /**
+   * @deprecated since SonarJava 5.12: use the {@link #colonOrArrowToken()} method instead
+   */
+  @Deprecated
   SyntaxToken colonToken();
+
+  /**
+   * @since SonarJava 5.12: Support of Java 12
+   */
+  SyntaxToken colonOrArrowToken();
 
 }

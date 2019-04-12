@@ -22,13 +22,11 @@ package com.sonar.it.java.suite;
 import com.sonar.orchestrator.Orchestrator;
 import com.sonar.orchestrator.build.MavenBuild;
 import java.util.List;
-import java.util.Objects;
+import java.util.regex.Pattern;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
-import org.sonar.wsclient.issue.Issue;
-import org.sonar.wsclient.issue.IssueClient;
-import org.sonar.wsclient.issue.IssueQuery;
+import org.sonarqube.ws.Issues.Issue;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -39,37 +37,26 @@ public class SquidTest {
 
   @BeforeClass
   public static void init() {
-    orchestrator.resetData();
-
     MavenBuild build = MavenBuild.create(TestUtils.projectPom("squid"))
       .setCleanPackageSonarGoals()
-      .setProperty("sonar.scm.disabled", "true")
-      .setProperty("sonar.profile", "squid");
+      .setProperty("sonar.scm.disabled", "true");
+    TestUtils.provisionProject(orchestrator, "com.sonarsource.it.samples:squid", "squid", "java", "squid");
     orchestrator.executeBuild(build);
   }
 
   @Test
   public void should_detect_missing_package_info() throws Exception {
-    IssueClient issueClient = orchestrator.getServer().wsClient().issueClient();
-    if (isGreater75()) {
-      // starting with 7.6, not possible anymore to raise issue at folder level -> moved to project level
-      List<Issue> issues = issueClient.find(IssueQuery.create().components("com.sonarsource.it.samples:squid")).list();
-      assertThat(issues).hasSize(2);
-      assertThat(issues.stream().map(Issue::ruleKey)).allMatch("squid:S1228"::equals);
-      assertThat(issues.stream().map(Issue::line)).allMatch(Objects::isNull);
-      assertThat(issues.stream().map(Issue::message)).allMatch(msg -> msg.contains("'src/main/java/package1'") || msg.contains("'src/main/java/package2'"));
-    } else {
-      List<Issue> issues = issueClient.find(IssueQuery.create().components(JavaTestSuite.keyFor("com.sonarsource.it.samples:squid", "package1", ""))).list();
-      assertThat(issues).hasSize(1);
-      assertThat(issues.get(0).ruleKey()).isEqualTo("squid:S1228");
-      assertThat(issues.get(0).line()).isNull();
-    }
-    List<Issue> issuesOnTestPackage = issueClient.find(IssueQuery.create().components("com.sonarsource.it.samples:squid:src/test/java/package1")).list();
-    assertThat(issuesOnTestPackage).isEmpty();
-  }
+    List<Issue> issues = TestUtils.issuesForComponent(orchestrator, "com.sonarsource.it.samples:squid");
 
-  private static boolean isGreater75() {
-    return orchestrator.getServer().version().isGreaterThanOrEquals(7, 6);
+    assertThat(issues).hasSize(2);
+    assertThat(issues.stream().map(Issue::getRule)).allMatch("squid:S1228"::equals);
+    assertThat(issues.stream().map(Issue::getLine)).allMatch(line -> line == 0);
+    String sep = "[/\\\\]";
+    Pattern packagePattern = Pattern.compile("'src" + sep + "main" + sep + "java" + sep + "package[12]'");
+    assertThat(issues.stream().map(Issue::getMessage)).allMatch(msg -> packagePattern.matcher(msg).find());
+
+    List<Issue> issuesOnTestPackage = TestUtils.issuesForComponent(orchestrator, "com.sonarsource.it.samples:squid:src/test/java/package1");
+    assertThat(issuesOnTestPackage).isEmpty();
   }
 
 }

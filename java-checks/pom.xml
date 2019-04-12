@@ -5,7 +5,7 @@
   <parent>
     <groupId>org.sonarsource.java</groupId>
     <artifactId>java</artifactId>
-    <version>5.12.0-SNAPSHOT</version>
+    <version>5.13.0-SNAPSHOT</version>
   </parent>
 
   <artifactId>java-checks</artifactId>
@@ -70,17 +70,6 @@
   </dependencies>
   <build>
     <plugins>
-      <plugin>
-        <groupId>org.jacoco</groupId>
-        <artifactId>jacoco-maven-plugin</artifactId>
-        <configuration>
-          <includes>
-            <include>org.sonar.java.checks.*</include>
-            <include>org.sonar.java.filters.*</include>
-            <include>org.sonar.java.tag.*</include>
-          </includes>
-        </configuration>
-      </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-dependency-plugin</artifactId>
@@ -566,6 +555,11 @@
                   <groupId>org.jmockit</groupId>
                   <artifactId>jmockit</artifactId>
                   <version>1.45</version>
+                </artifactItem>
+                <artifactItem>
+                  <groupId>javax.validation</groupId>
+                  <artifactId>validation-api</artifactId>
+                  <version>2.0.1.Final</version>
                 </artifactItem>
               </artifactItems>
               <outputDirectory>${project.build.directory}/test-jars</outputDirectory>

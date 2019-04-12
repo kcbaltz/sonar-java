@@ -21,10 +21,7 @@ package org.sonar.java.model;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
 import org.junit.Before;
@@ -32,7 +29,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
-import org.sonar.api.batch.fs.internal.TestInputFileBuilder;
+import org.sonar.api.batch.fs.InputFile;
 import org.sonar.api.batch.rule.CheckFactory;
 import org.sonar.api.batch.sensor.SensorContext;
 import org.sonar.api.batch.sensor.internal.SensorContextTester;
@@ -43,6 +40,7 @@ import org.sonar.api.rule.RuleKey;
 import org.sonar.java.JavaClasspath;
 import org.sonar.java.JavaTestClasspath;
 import org.sonar.java.SonarComponents;
+import org.sonar.java.TestUtils;
 import org.sonar.java.ast.parser.JavaParser;
 import org.sonar.java.se.checks.SECheck;
 import org.sonar.plugins.java.api.JavaCheck;
@@ -62,8 +60,6 @@ import static org.mockito.Mockito.when;
 @RunWith(MockitoJUnitRunner.class)
 public class TestDefaultJavaFileScannerContextWithSensorContextTester {
 
-  private static final File JAVA_FILE = new File("src/test/files/api/JavaFileScannerContext.java");
-
   @Mock private FileLinesContextFactory fileLinesContextFactory;
   @Mock private JavaClasspath javaClasspath;
   @Mock private JavaTestClasspath javaTestClasspath;
@@ -82,12 +78,6 @@ public class TestDefaultJavaFileScannerContextWithSensorContextTester {
   @Before
   public void setup() throws IOException {
     sensorContext = SensorContextTester.create(Paths.get(""));
-    sensorContext.fileSystem().add(
-      new TestInputFileBuilder("myProjectKey", JAVA_FILE.getPath())
-        .setLanguage("java")
-        .initMetadata(new String(Files.readAllBytes(JAVA_FILE.toPath()), StandardCharsets.UTF_8))
-        .build()
-    );
     SonarComponents sonarComponents = new SonarComponents(fileLinesContextFactory, sensorContext.fileSystem(), javaClasspath, javaTestClasspath, checkFactory);
     sonarComponents.setSensorContext(sensorContext);
 
@@ -95,9 +85,10 @@ public class TestDefaultJavaFileScannerContextWithSensorContextTester {
     sonarComponents = spy(sonarComponents);
     when(sonarComponents.getRuleKey(any())).thenReturn(RuleKey.of("repository", "rule"));
 
-    CompilationUnitTree cut = (CompilationUnitTree) JavaParser.createParser().parse(JAVA_FILE);
+    InputFile inputFile = TestUtils.inputFile("src/test/files/api/JavaFileScannerContext.java");
+    CompilationUnitTree cut = (CompilationUnitTree) JavaParser.createParser().parse(inputFile.contents());
     tree = cut.types().get(0);
-    scannerContext = new DefaultJavaFileScannerContext(cut, JAVA_FILE, null, sonarComponents, null, true);
+    scannerContext = new DefaultJavaFileScannerContext(cut, inputFile, null, sonarComponents, null, true);
   }
 
   @Test

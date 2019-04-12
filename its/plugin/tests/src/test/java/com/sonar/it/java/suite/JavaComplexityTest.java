@@ -27,12 +27,9 @@ import java.util.Set;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
-import org.sonar.wsclient.issue.Issue;
-import org.sonar.wsclient.issue.IssueClient;
-import org.sonar.wsclient.issue.IssueQuery;
+import org.sonarqube.ws.Issues.Issue;
 
 import static com.sonar.it.java.suite.JavaTestSuite.getMeasure;
-import static com.sonar.it.java.suite.JavaTestSuite.getMeasureAsDouble;
 import static com.sonar.it.java.suite.JavaTestSuite.getMeasureAsInteger;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -45,12 +42,11 @@ public class JavaComplexityTest {
 
   @BeforeClass
   public static void analyzeProject() {
-    orchestrator.resetData();
     MavenBuild build = MavenBuild.create(TestUtils.projectPom("java-complexity"))
       .setCleanSonarGoals()
       .setProperty("sonar.dynamicAnalysis", "false")
-      .setProperty("sonar.java.binaries", "target")
-      .setProperty("sonar.profile", "java-complexity");
+      .setProperty("sonar.java.binaries", "target");
+    TestUtils.provisionProject(orchestrator, PROJECT, "java-complexity", "java", "java-complexity");
     orchestrator.executeBuild(build);
   }
 
@@ -95,56 +91,18 @@ public class JavaComplexityTest {
   }
 
   @Test
-  public void testAverageMethodComplexity() {
-    assertThat(getMeasureAsDouble(JavaTestSuite.keyFor(PROJECT, "complexity/", "Helloworld.java"), "function_complexity")).isEqualTo(1.5);
-
-    assertThat(getMeasureAsDouble(JavaTestSuite.keyFor(PROJECT, "complexity/", "ContainsInnerClasses.java"), "function_complexity")).isEqualTo(1.3);
-
-    assertThat(getMeasureAsDouble(JavaTestSuite.keyFor(PROJECT, "complexity/", "AnonymousClass.java"), "function_complexity")).isEqualTo(1.0);
-
-    assertThat(getMeasureAsDouble(JavaTestSuite.keyFor(PROJECT, "complexity", ""), "function_complexity")).isEqualTo(1.3);
-    assertThat(getMeasureAsDouble(PROJECT, "function_complexity")).isEqualTo(1.3);
-  }
-
-  @Test
-  public void testAverageClassComplexity() {
-    assertThat(getMeasureAsDouble(JavaTestSuite.keyFor(PROJECT, "complexity/", "Helloworld.java"), "class_complexity")).isEqualTo(7.0);
-
-    assertThat(getMeasureAsDouble(JavaTestSuite.keyFor(PROJECT, "complexity/", "ContainsInnerClasses.java"), "class_complexity")).isEqualTo(1.7);
-
-    assertThat(getMeasureAsDouble(JavaTestSuite.keyFor(PROJECT, "complexity", ""), "class_complexity")).isEqualTo(2.7);
-  }
-
-  /**
-   * SONAR-3289
-   */
-  @Test
-  public void testDistributionOfFileComplexity() throws Exception {
-    assertThat(getMeasure(JavaTestSuite.keyFor(PROJECT, "complexity", ""), "file_complexity_distribution").getValue()).isEqualTo("0=2;5=2;10=0;20=0;30=0;60=0;90=0");
-    assertThat(getMeasure(PROJECT, "file_complexity_distribution").getValue()).isEqualTo("0=2;5=2;10=0;20=0;30=0;60=0;90=0");
-  }
-
-  @Test
-  public void testDistributionOfMethodComplexity() {
-    assertThat(getMeasure(JavaTestSuite.keyFor(PROJECT, "complexity", ""), "function_complexity_distribution").getValue()).isEqualTo("1=8;2=2;4=0;6=0;8=0;10=0;12=0");
-    assertThat(getMeasure(PROJECT, "function_complexity_distribution").getValue()).isEqualTo("1=8;2=2;4=0;6=0;8=0;10=0;12=0");
-  }
-
-  @Test
   public void shouldNotPersistDistributionOnFiles() {
-    assertThat(getMeasure(JavaTestSuite.keyFor(PROJECT, "complexity/", "Helloworld.java"), "class_complexity_distribution")).isNull();
     assertThat(getMeasure(JavaTestSuite.keyFor(PROJECT, "complexity/", "Helloworld.java"), "function_complexity_distribution")).isNull();
   }
 
   @Test
   public void complexity_sqale_computation() throws Exception {
-    IssueClient issueClient = orchestrator.getServer().wsClient().issueClient();
+    List<Issue> issues = TestUtils.issuesForComponent(orchestrator, PROJECT);
 
-    List<Issue> issues = issueClient.find(IssueQuery.create().componentRoots(PROJECT)).list();
     assertThat(issues).hasSize(3);
     Set<String> debts = Sets.newHashSet();
     for (Issue issue : issues) {
-      debts.add(issue.debt());
+      debts.add(issue.getDebt());
     }
     assertThat(debts).hasSize(2).containsOnly("11min", "12min");
   }

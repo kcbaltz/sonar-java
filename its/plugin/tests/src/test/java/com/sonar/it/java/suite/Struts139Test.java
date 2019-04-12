@@ -24,7 +24,6 @@ import com.sonar.orchestrator.build.MavenBuild;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
-import org.sonarqube.ws.WsMeasures.Measure;
 
 import static com.sonar.it.java.suite.JavaTestSuite.getComponent;
 import static com.sonar.it.java.suite.JavaTestSuite.getMeasure;
@@ -44,8 +43,6 @@ public class Struts139Test {
 
   @BeforeClass
   public static void analyzeProject() {
-    orchestrator.resetData();
-
     MavenBuild build = MavenBuild.create(TestUtils.projectPom("struts-1.3.9-lite"))
       .setGoals("org.jacoco:jacoco-maven-plugin:prepare-agent clean verify");
     MavenBuild analysis = MavenBuild.create(TestUtils.projectPom("struts-1.3.9-lite"))
@@ -79,7 +76,7 @@ public class Struts139Test {
 
   @Test
   public void unit_test_metrics() {
-    int linesToCover = 15498;
+    int linesToCover = isGreater76() ? 15470 : 15494;
     assertThat(getMeasureAsDouble(PROJECT_STRUTS, "lines_to_cover")).isEqualTo(linesToCover, offset(10.0));
     assertThat(getMeasureAsDouble(PROJECT_STRUTS, "coverage")).isEqualTo(25.1, offset(0.2));
     assertThat(getMeasureAsDouble(moduleKey(), "coverage")).isEqualTo(36.8, offset(0.2));
@@ -98,44 +95,9 @@ public class Struts139Test {
   public void complexity_metrics() {
     assertThat(getMeasureAsInteger(PROJECT_STRUTS, "complexity")).isEqualTo(5589);
 
-    assertThat(getMeasureAsDouble(PROJECT_STRUTS, "class_complexity")).isEqualTo(16.6);
-    assertThat(getMeasureAsDouble(PROJECT_STRUTS, "function_complexity")).isEqualTo(1.9);
-
     int expected_statements = 12103;
     expected_statements += 3; // empty statements in type declaration or member of classes in struts-1.3.9
     assertThat(getMeasureAsInteger(PROJECT_STRUTS, "statements")).isEqualTo(expected_statements);
-  }
-
-  @Test
-  public void file_complexity_distribution() {
-    assertThat(getMeasureValue(componentKey("org/apache/struts/config", ""), "file_complexity_distribution"))
-      .isEqualTo(isGreater75() ? "0=4;5=1;10=2;20=1;30=5;60=3;90=1" : "0=3;5=1;10=2;20=1;30=5;60=2;90=1");
-    assertThat(getMeasureValue(moduleKey(), "file_complexity_distribution")).isEqualTo("0=49;5=24;10=22;20=8;30=17;60=5;90=9");
-    assertThat(getMeasureValue(PROJECT_STRUTS, "file_complexity_distribution")).isEqualTo("0=141;5=44;10=55;20=26;30=34;60=7;90=13");
-  }
-
-  @Test
-  public void function_complexity_distribution() {
-    String componentKey = componentKey("org/apache/struts/config", "");
-    assertThat(getMeasureValue(componentKey, "function_complexity_distribution"))
-      .isEqualTo(isGreater75() ? "1=163;2=103;4=13;6=11;8=6;10=0;12=5" : "1=134;2=96;4=12;6=9;8=6;10=0;12=5");
-  }
-
-  @Test
-  public void should_not_persist_complexity_distributions_on_files() {
-    String componentKey = componentKey("org/apache/struts/config/", "ConfigRuleSet.java");
-    assertThat(getMeasure(componentKey, "function_complexity_distribution")).isNull();
-    assertThat(getMeasure(componentKey, "file_complexity_distribution")).isNull();
-  }
-
-  @Test
-  public void should_get_details_of_coverage_hits() {
-    String componentKey = componentKey("org/apache/struts/action/", "ActionForward.java");
-    Measure coverage = getMeasure(componentKey, "coverage_line_hits_data");
-    assertThat(coverage).isNotNull();
-    String value = coverage.getValue();
-    assertThat(value.length()).isGreaterThan(10);
-    assertThat(value).matches("(\\d+=\\d+;{0,1})+");
   }
 
   private static String componentKey(String path, String file) {
@@ -154,6 +116,10 @@ public class Struts139Test {
 
   private static boolean isGreater75() {
     return orchestrator.getServer().version().isGreaterThanOrEquals(7, 6);
+  }
+
+  private static boolean isGreater76() {
+    return orchestrator.getServer().version().isGreaterThanOrEquals(7, 7);
   }
 
   private static String getMeasureValue(String componentKey, String metricKey) {

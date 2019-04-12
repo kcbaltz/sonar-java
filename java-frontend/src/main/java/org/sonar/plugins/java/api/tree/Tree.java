@@ -139,6 +139,12 @@ public interface Tree {
     SWITCH_STATEMENT(SwitchStatementTree.class),
 
     /**
+     * {@link SwitchExpressionTree}
+     * @since SonarJava 5.12: Support of Java 12
+     */
+    SWITCH_EXPRESSION(SwitchExpressionTree.class),
+
+    /**
      * {@link CaseGroupTree}
      */
     CASE_GROUP(CaseGroupTree.class),
